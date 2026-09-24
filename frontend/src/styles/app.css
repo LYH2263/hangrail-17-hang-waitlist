@@ -253,6 +253,28 @@ button {
 .mono { font-family: "IBM Plex Mono", monospace; }
 .err { color: #ff9b7a; } .ok { color: #d4c08a; }
 
+.queue-panel {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  padding: .6rem .8rem .7rem;
+  margin-bottom: 1rem;
+}
+.queue-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: .85rem;
+  color: var(--hang-muted);
+  margin-bottom: .45rem;
+}
+.queue-panel-head button { padding: .3rem .7rem; font-size: .82rem; }
+.queue-panel-head button:disabled { opacity: .45; cursor: default; }
+.tray-chip--head {
+  border-color: var(--hang-copper);
+  color: var(--hang-copper);
+}
+
 .ruler-wrap {
   background: transparent;
   border: none;

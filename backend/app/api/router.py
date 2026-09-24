@@ -5,17 +5,19 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.models import HangRail, RailPlacement, Store, WorkOrder
+from app.models.models import HangRail, RailPlacement, Store, WaitQueueEntry, WorkOrder
 from app.schemas.schemas import (
+    DrainResult,
     HangRequest,
     OccupancyOut,
     OccupancySeg,
     OrderOut,
     PickupRequest,
+    QueueEntryOut,
     RailOut,
     StoreOut,
 )
-from app.services.rail_engine import Segment, first_fit
+from app.services.hang_service import HANGABLE_STATUSES, drain_queue, enqueue, try_place
 
 api_router = APIRouter()
 
@@ -71,38 +73,50 @@ def hang(body: HangRequest, db: Session = Depends(get_db)):
     order = db.get(WorkOrder, body.order_id)
     if not order:
         raise HTTPException(404, "工单不存在")
-    if order.status not in ("ready", "overdue"):
+    if order.status not in HANGABLE_STATUSES:
         raise HTTPException(400, "工单状态不可上杆")
     rail_q = select(HangRail).where(HangRail.store_id == order.store_id)
     if body.rail_id:
         rail_q = rail_q.where(HangRail.id == body.rail_id)
-    rails = db.scalars(rail_q.order_by(HangRail.id)).all()
-    if not rails:
+    if db.scalar(rail_q.limit(1)) is None:
         raise HTTPException(404, "无可用挂杆")
 
-    for rail in rails:
-        active = db.scalars(
-            select(RailPlacement).where(RailPlacement.rail_id == rail.id, RailPlacement.active == 1)
-        ).all()
-        occupied = [Segment(p.start_cm, p.end_cm) for p in active]
-        place = first_fit(rail.length_cm, occupied, order.length_cm)
-        if place is None:
+    if try_place(db, order, body.rail_id) is None:
+        # 空间不足：写入候挂队列（同一工单不重复入队），不再仅返回错误
+        enqueue(db, order)
+    db.commit()
+    db.refresh(order)
+    return order
+
+
+@api_router.get("/queue", response_model=list[QueueEntryOut])
+def wait_queue(db: Session = Depends(get_db)):
+    entries = db.scalars(select(WaitQueueEntry).order_by(WaitQueueEntry.id)).all()
+    out = []
+    for e in entries:
+        order = db.get(WorkOrder, e.order_id)
+        if not order:
             continue
-        db.add(
-            RailPlacement(
-                rail_id=rail.id,
+        out.append(
+            QueueEntryOut(
+                id=e.id,
                 order_id=order.id,
-                start_cm=place.start_cm,
-                end_cm=place.end_cm,
+                ticket_code=order.ticket_code,
+                garment_name=order.garment_name,
+                length_cm=order.length_cm,
+                enqueued_at=e.enqueued_at,
             )
         )
-        order.status = "hung"
-        order.hung_at = datetime.utcnow()
-        db.commit()
-        db.refresh(order)
-        return order
+    return out
 
-    raise HTTPException(409, "挂杆空间不足")
+
+@api_router.post("/queue/drain", response_model=DrainResult)
+def wait_queue_drain(db: Session = Depends(get_db)):
+    hung, blocked_order_id, remaining = drain_queue(db)
+    db.commit()
+    for o in hung:
+        db.refresh(o)
+    return DrainResult(hung=hung, blocked_order_id=blocked_order_id, remaining=remaining)
 
 
 @api_router.post("/pickup", response_model=OrderOut)
