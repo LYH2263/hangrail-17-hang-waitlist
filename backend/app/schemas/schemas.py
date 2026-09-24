@@ -50,3 +50,17 @@ class OccupancyOut(BaseModel):
     label: str
     length_cm: float
     segments: list[OccupancySeg]
+
+
+class QueueEntryOut(BaseModel):
+    id: int
+    order_id: int
+    ticket_code: str
+    garment_name: str
+    length_cm: float
+    enqueued_at: datetime
+
+
+class DrainOut(BaseModel):
+    hung: list[OrderOut]
+    remaining: list[QueueEntryOut]

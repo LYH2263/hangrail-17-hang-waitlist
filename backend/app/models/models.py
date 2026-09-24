@@ -30,9 +30,17 @@ class WorkOrder(Base):
     ticket_code: Mapped[str] = mapped_column(String(40), unique=True)
     garment_name: Mapped[str] = mapped_column(String(80))
     length_cm: Mapped[float] = mapped_column(Float)
-    status: Mapped[str] = mapped_column(String(20), default="ready")  # ready/hung/picked/overdue
+    status: Mapped[str] = mapped_column(String(20), default="ready")  # ready/queued/hung/picked/overdue
     due_at: Mapped[datetime] = mapped_column(DateTime)
     hung_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class PendingQueueEntry(Base):
+    __tablename__ = "pending_queue"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("work_orders.id"), unique=True)  # 同一工单不得重复入队
+    enqueued_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    order: Mapped[WorkOrder] = relationship()
 
 
 class RailPlacement(Base):

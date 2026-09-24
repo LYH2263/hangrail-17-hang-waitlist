@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.models import HangRail, RailPlacement, Store, WorkOrder
+from app.models.models import HangRail, PendingQueueEntry, RailPlacement, Store, WorkOrder
 
 
 def seed_if_empty(db: Session) -> None:
@@ -23,6 +23,7 @@ def seed_if_empty(db: Session) -> None:
         WorkOrder(store_id=store.id, ticket_code="HR-2003", garment_name="羽绒服", length_cm=50, status="ready", due_at=now + timedelta(days=1)),
         WorkOrder(store_id=store.id, ticket_code="HR-2004", garment_name="连衣裙", length_cm=30, status="ready", due_at=now - timedelta(days=1)),
         WorkOrder(store_id=store.id, ticket_code="HR-2005", garment_name="风衣", length_cm=40, status="hung", due_at=now - timedelta(hours=12), hung_at=now - timedelta(days=3)),
+        WorkOrder(store_id=store.id, ticket_code="HR-2006", garment_name="拖尾礼服", length_cm=130, status="queued", due_at=now + timedelta(days=3)),
     ]
     db.add_all(orders)
     db.flush()
@@ -31,6 +32,7 @@ def seed_if_empty(db: Session) -> None:
             RailPlacement(rail_id=r1.id, order_id=orders[0].id, start_cm=0, end_cm=45),
             RailPlacement(rail_id=r1.id, order_id=orders[1].id, start_cm=45, end_cm=80),
             RailPlacement(rail_id=r2.id, order_id=orders[4].id, start_cm=0, end_cm=40),
+            PendingQueueEntry(order_id=orders[5].id, enqueued_at=now - timedelta(minutes=10)),
         ]
     )
     db.commit()
